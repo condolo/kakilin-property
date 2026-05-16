@@ -2479,6 +2479,7 @@ function doAdminLogin() {
   if (found) {
     App.adminUser = { id: found.id, name: found.name, username: found.username, role: found.role };
     App.adminSection = 'overview';
+    sessionStorage.setItem('kakilin_admin', JSON.stringify(App.adminUser));
     App.render();
   } else {
     const err = document.getElementById('login-error');
@@ -2490,6 +2491,7 @@ function adminLogout() {
   const name = App.adminUser?.name || 'Admin';
   App.adminUser = null;
   App.adminSection = 'overview';
+  sessionStorage.removeItem('kakilin_admin');
   App.navigate('home');
   showToast(`Goodbye, ${name}! Logged out successfully.`);
 }
@@ -3214,6 +3216,40 @@ function render404() {
 }
 
 /* ============================================================
+   WHATSAPP FLOATING BUTTON
+   ============================================================ */
+function injectWhatsAppButton() {
+  const existing = document.getElementById('wa-float');
+  if (existing) return; // already injected
+  const s = DB.getSettings();
+  // Strip non-digits from phone, default to a placeholder
+  const phone = (s.phone || '+254700000000').replace(/\D/g, '');
+  const msg   = encodeURIComponent(`Hello Kakilin Properties! I found your website and I'd like to enquire about a listing.`);
+  const btn   = document.createElement('a');
+  btn.id        = 'wa-float';
+  btn.href      = `https://wa.me/${phone}?text=${msg}`;
+  btn.target    = '_blank';
+  btn.rel       = 'noopener noreferrer';
+  btn.title     = 'Chat on WhatsApp';
+  btn.innerHTML = `<svg viewBox="0 0 32 32" width="28" height="28" fill="none" xmlns="http://www.w3.org/2000/svg"><path fill="#fff" d="M16 1C7.716 1 1 7.716 1 16c0 2.627.668 5.1 1.84 7.26L1 31l7.94-1.82A14.94 14.94 0 0 0 16 31c8.284 0 15-6.716 15-15S24.284 1 16 1zm0 27.333a12.287 12.287 0 0 1-6.276-1.714l-.45-.267-4.713 1.08 1.11-4.578-.293-.467A12.333 12.333 0 1 1 16 28.333z"/><path fill="#fff" d="M22.003 18.867c-.327-.163-1.932-.953-2.232-1.063-.3-.11-.518-.163-.736.163-.218.327-.845 1.063-1.036 1.281-.19.218-.382.245-.709.082-.327-.163-1.38-.509-2.628-1.621-.972-.868-1.628-1.94-1.819-2.267-.19-.327-.02-.504.143-.667.147-.146.327-.381.49-.572.164-.19.218-.327.327-.545.11-.218.055-.408-.027-.572-.082-.163-.736-1.777-1.009-2.431-.266-.636-.536-.55-.736-.56l-.627-.01c-.218 0-.572.082-.872.408-.3.327-1.145 1.118-1.145 2.727 0 1.61 1.172 3.165 1.336 3.383.163.218 2.308 3.522 5.59 4.94.782.337 1.392.539 1.868.69.785.25 1.5.214 2.065.13.63-.094 1.932-.79 2.205-1.554.273-.763.273-1.417.19-1.554-.081-.136-.3-.218-.627-.381z"/></svg>`;
+  btn.style.cssText = `
+    position:fixed;bottom:28px;right:24px;z-index:9000;
+    background:#25D366;border-radius:50%;width:58px;height:58px;
+    display:flex;align-items:center;justify-content:center;
+    box-shadow:0 4px 20px rgba(37,211,102,.45);
+    transition:transform .2s,box-shadow .2s;text-decoration:none;`;
+  btn.addEventListener('mouseenter', () => {
+    btn.style.transform = 'scale(1.12)';
+    btn.style.boxShadow = '0 6px 28px rgba(37,211,102,.6)';
+  });
+  btn.addEventListener('mouseleave', () => {
+    btn.style.transform = '';
+    btn.style.boxShadow = '0 4px 20px rgba(37,211,102,.45)';
+  });
+  document.body.appendChild(btn);
+}
+
+/* ============================================================
    EVENT DELEGATION
    ============================================================ */
 function attachEventListeners() {
@@ -3221,8 +3257,12 @@ function attachEventListeners() {
   document.querySelectorAll('.nav-link[data-page]').forEach(el => {
     el.addEventListener('click', () => App.navigate(el.dataset.page));
   });
-  // Footer links
-  document.querySelectorAll('.footer-links a[onclick]').forEach(el => {});
+  // Inject WhatsApp float on every page (hidden on admin)
+  if (App.page !== 'admin') {
+    injectWhatsAppButton();
+  } else {
+    document.getElementById('wa-float')?.remove();
+  }
 }
 
 /* ============================================================
@@ -3272,6 +3312,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     await DB.init();
   } catch (e) {
     console.error('Failed to load data from API:', e);
+  }
+
+  // Restore admin session across page refreshes
+  const saved = sessionStorage.getItem('kakilin_admin');
+  if (saved) {
+    try { App.adminUser = JSON.parse(saved); } catch(_) {}
   }
 
   // Apply settings (colors, favicon, title)

@@ -2,12 +2,58 @@ require('dotenv').config();
 const express   = require('express');
 const mongoose  = require('mongoose');
 const path      = require('path');
+const nodemailer = require('nodemailer');
 
 const app  = express();
 const PORT = process.env.PORT || 3002;
 
 app.use(express.json({ limit: '10mb' }));
 app.use(express.static(path.join(__dirname)));
+
+/* ================================================================
+   EMAIL HELPER (Nodemailer — Gmail SMTP)
+   Set MAIL_USER and MAIL_PASS in .env / Render env vars
+   ================================================================ */
+const mailer = nodemailer.createTransport({
+  service: 'gmail',
+  auth: { user: process.env.MAIL_USER, pass: process.env.MAIL_PASS }
+});
+
+async function sendMail({ to, subject, html }) {
+  if (!process.env.MAIL_USER || !process.env.MAIL_PASS) return; // skip silently if not configured
+  try {
+    await mailer.sendMail({
+      from: `"Kakilin Properties" <${process.env.MAIL_USER}>`,
+      to, subject, html
+    });
+    console.log(`📧 Email sent → ${to}`);
+  } catch (e) {
+    console.error('📧 Email failed:', e.message);
+  }
+}
+
+const ADMIN_EMAIL = process.env.ADMIN_EMAIL || process.env.MAIL_USER || '';
+
+function emailTable(rows) {
+  return `<table style="width:100%;border-collapse:collapse;font-size:14px">${rows.map(([k,v])=>`<tr><td style="padding:8px 12px;background:#f5f5f5;font-weight:600;width:40%;border:1px solid #ddd">${k}</td><td style="padding:8px 12px;border:1px solid #ddd">${v||'—'}</td></tr>`).join('')}</table>`;
+}
+
+function emailWrapper(title, body) {
+  return `
+  <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;background:#fff">
+    <div style="background:#1a2744;padding:24px 32px;text-align:center">
+      <h2 style="color:#fff;margin:0;font-size:20px">🏘️ Kakilin Properties</h2>
+      <p style="color:#c8921a;margin:4px 0 0;font-size:13px">Your Trust, Our Priority</p>
+    </div>
+    <div style="padding:28px 32px">
+      <h3 style="color:#1a2744;margin-top:0">${title}</h3>
+      ${body}
+    </div>
+    <div style="background:#f5f5f5;padding:16px 32px;text-align:center;font-size:12px;color:#888">
+      Kakilin Properties · Westlands, Nairobi · info@kakilin.co.ke
+    </div>
+  </div>`;
+}
 
 /* ================================================================
    MONGOOSE SCHEMAS & MODELS
@@ -155,10 +201,119 @@ app.use('/api/properties',    crudRouter(Property));
 app.use('/api/vehicles',      crudRouter(Vehicle));
 app.use('/api/vehicleOwners', crudRouter(VehicleOwner));
 app.use('/api/developers',    crudRouter(Developer));
-app.use('/api/leads',         crudRouter(Lead));
-app.use('/api/bookings',      crudRouter(Booking));
-app.use('/api/services',      crudRouter(Service));
 app.use('/api/users',         crudRouter(User));
+
+/* ── Leads — with email notification on new lead ── */
+app.use('/api/leads', (() => {
+  const router = crudRouter(Lead);
+  // Override POST to send email
+  router.post('/', async (req, res) => {
+    try {
+      const lead = await Lead.create(req.body);
+      res.status(201).json(lead);
+      // Notify admin
+      if (ADMIN_EMAIL) {
+        sendMail({
+          to: ADMIN_EMAIL,
+          subject: `🔔 New Enquiry — ${lead.name}`,
+          html: emailWrapper('New Client Enquiry', `
+            <p>A new enquiry has been submitted on Kakilin Properties.</p>
+            ${emailTable([
+              ['Name', lead.name],
+              ['Phone', lead.phone],
+              ['Email', lead.email],
+              ['Interest', lead.interest],
+              ['Date', new Date(lead.date).toLocaleDateString('en-KE')],
+            ])}
+            <p style="margin-top:20px;color:#888;font-size:13px">Log in to your admin panel to follow up.</p>`)
+        });
+      }
+      // Auto-reply to client if they left email
+      if (lead.email) {
+        sendMail({
+          to: lead.email,
+          subject: `Thank you for your enquiry — Kakilin Properties`,
+          html: emailWrapper('We Received Your Enquiry!', `
+            <p>Dear <strong>${lead.name}</strong>,</p>
+            <p>Thank you for reaching out to Kakilin Properties. We've received your enquiry about <strong>${lead.interest || 'our listings'}</strong> and our team will get back to you within <strong>24 hours</strong>.</p>
+            <p>In the meantime, feel free to browse more listings on our website or call us directly.</p>
+            <p style="margin-top:24px">Warm regards,<br><strong>Kakilin Properties Team</strong></p>`)
+        });
+      }
+    } catch (e) { res.status(400).json({ error: e.message }); }
+  });
+  return router;
+})());
+
+/* ── Bookings — with email notification on new booking ── */
+app.use('/api/bookings', (() => {
+  const router = crudRouter(Booking);
+  router.post('/', async (req, res) => {
+    try {
+      const booking = await Booking.create(req.body);
+      res.status(201).json(booking);
+      // Notify admin
+      if (ADMIN_EMAIL) {
+        sendMail({
+          to: ADMIN_EMAIL,
+          subject: `📅 New Booking — ${booking.clientName}`,
+          html: emailWrapper('New Booking Request', `
+            <p>A new booking has been submitted.</p>
+            ${emailTable([
+              ['Client', booking.clientName],
+              ['Phone', booking.clientPhone],
+              ['Email', booking.clientEmail],
+              ['Type', booking.type],
+              ['Date', booking.date],
+              ['Time', booking.time],
+              ['Notes', booking.notes],
+            ])}`)
+        });
+      }
+      // Confirm to client
+      if (booking.clientEmail) {
+        sendMail({
+          to: booking.clientEmail,
+          subject: `Booking Confirmed — Kakilin Properties`,
+          html: emailWrapper('Your Booking is Received!', `
+            <p>Dear <strong>${booking.clientName}</strong>,</p>
+            <p>Your <strong>${booking.type}</strong> has been scheduled for <strong>${booking.date} at ${booking.time}</strong>.</p>
+            <p>Our team will confirm this appointment and send you any location details shortly. If you need to reschedule, please call us.</p>
+            <p style="margin-top:24px">Warm regards,<br><strong>Kakilin Properties Team</strong></p>`)
+        });
+      }
+    } catch (e) { res.status(400).json({ error: e.message }); }
+  });
+  return router;
+})());
+
+/* ── Services — with email notification on new request ── */
+app.use('/api/services', (() => {
+  const router = crudRouter(Service);
+  router.post('/', async (req, res) => {
+    try {
+      const svc = await Service.create(req.body);
+      res.status(201).json(svc);
+      // Notify admin
+      if (ADMIN_EMAIL) {
+        sendMail({
+          to: ADMIN_EMAIL,
+          subject: `🔍 New Service Request — ${svc.service}`,
+          html: emailWrapper('New Service Request', `
+            <p>A new ${svc.type} request has been submitted.</p>
+            ${emailTable([
+              ['Service', svc.service],
+              ['Client', svc.clientName],
+              ['Phone', svc.clientPhone],
+              ['Property Details', svc.propertyDetails],
+              ['Submitted', new Date(svc.submittedDate).toLocaleDateString('en-KE')],
+            ])}`)
+        });
+      }
+    } catch (e) { res.status(400).json({ error: e.message }); }
+  });
+  return router;
+})());
 
 /* ── Settings (singleton document) ── */
 app.get('/api/settings', async (req, res) => {
