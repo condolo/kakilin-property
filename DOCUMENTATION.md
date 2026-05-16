@@ -1,7 +1,8 @@
-# Kakilin Properties — Technical Documentation
+# Kakilin Properties — Developer Documentation
 
-**Version:** 1.0  
-**Platform:** Kenya Property SPA  
+**Version:** 2.2.0  
+**Last Updated:** 2026-05-16  
+**Platform:** Kenya Property & Vehicle SPA  
 **Tagline:** Your Trust, Our Priority
 
 ---
@@ -9,103 +10,82 @@
 ## Table of Contents
 
 1. [Project Overview](#1-project-overview)
-2. [Architecture](#2-architecture)
+2. [Technology Stack](#2-technology-stack)
 3. [File Structure](#3-file-structure)
-4. [Data Layer](#4-data-layer)
-5. [Public Pages & Features](#5-public-pages--features)
-6. [Admin Panel](#6-admin-panel)
-7. [User Roles & Access Control](#7-user-roles--access-control)
-8. [Service Pricing System](#8-service-pricing-system)
-9. [Settings & Customization](#9-settings--customization)
-10. [Deployment](#10-deployment)
-11. [Default Credentials](#11-default-credentials)
+4. [Environment Variables](#4-environment-variables)
+5. [Architecture & Data Flow](#5-architecture--data-flow)
+6. [Database — MongoDB Atlas](#6-database--mongodb-atlas)
+7. [REST API Reference](#7-rest-api-reference)
+8. [Frontend — SPA Router](#8-frontend--spa-router)
+9. [Public Pages](#9-public-pages)
+10. [Admin Panel](#10-admin-panel)
+11. [User Roles & Access Control](#11-user-roles--access-control)
+12. [Notifications — Email & WhatsApp](#12-notifications--email--whatsapp)
+13. [Service Pricing System](#13-service-pricing-system)
+14. [Settings & Customization](#14-settings--customization)
+15. [Deployment — Render.com](#15-deployment--rendercom)
+16. [Local Development Setup](#16-local-development-setup)
+17. [Default Credentials](#17-default-credentials)
+18. [Known Limitations & Roadmap](#18-known-limitations--roadmap)
 
 ---
 
 ## 1. Project Overview
 
-Kakilin Properties is a full-featured Kenyan property platform built as a **Single Page Application (SPA)**. It enables property browsing, booking, due diligence requests, land transfer facilitation, and complete back-office management — all without a database server. All data is persisted in the browser's `localStorage`.
+Kakilin Properties is a full-stack Kenyan property and vehicle marketplace built as a **Single Page Application (SPA)** with a **Node.js + Express + MongoDB Atlas** backend.
 
-**Core capabilities:**
-- Property listings (Land, House, Plot, Commercial)
-- Property search and filtering across all 47 Kenyan counties
-- Due diligence service requests (title search, ownership verification, etc.)
-- Land transfer and subdivision facilitation with legal requirements
-- Booking system (property viewings and consultations)
-- CRM / lead management
-- Admin dashboard with role-based access
-- Full website customization from the admin panel
-- Service pricing controlled by Super Admin
+### Core Capabilities
+
+| Domain | Features |
+|---|---|
+| **Properties** | Land, House, Plot, Commercial listings — search, filter, book, enquire |
+| **Vehicles** | Cars sold on consignment — SUVs, Sedans, Pickups, Buses, etc. |
+| **Due Diligence** | Title search, ownership verification, land history checks |
+| **Land Transfer** | Full transfer facilitation with document checklist |
+| **Subdivision** | Land subdivision with county approval workflow |
+| **Bookings** | Property viewings and consultation appointments |
+| **CRM** | Lead management — inquiries, status tracking, follow-ups |
+| **Admin Panel** | Role-based dashboard, CRUD for all entities, customization |
+| **Notifications** | Email (Nodemailer) + WhatsApp (wa.me link) |
 
 ---
 
-## 2. Architecture
+## 2. Technology Stack
 
-### Technology Stack
-
-| Layer | Technology |
-|---|---|
-| Frontend | Vanilla JavaScript (ES6+), no frameworks |
-| Styling | Custom CSS with CSS custom properties (variables) |
-| Routing | Hash-based (`#home`, `#properties`, `#admin`, etc.) |
-| Storage | Browser `localStorage` (no backend database) |
-| Server | Node.js built-in `http` module (static file server) |
-| Deployment | Render.com (connected to GitHub) |
-
-### SPA Pattern
-
-The app is a **Single Page Application** driven by `window.location.hash`. The router listens for `hashchange` events and re-renders the `#page-content` div with the appropriate page. No page reloads occur during navigation.
-
-```
-URL Hash          → Function Called
-#home             → renderHome()
-#properties       → renderProperties()
-#property?id=N    → renderPropertyDetail(id)
-#services         → renderServices()
-#due-diligence    → renderDueDiligence()
-#transfers        → renderTransfers()
-#booking          → renderBooking()
-#contact          → renderContact()
-#admin            → renderAdmin()
-#developer        → renderDeveloperPortal()
-```
-
-### Rendering Pipeline
-
-```
-hashchange event
-    ↓
-parseHash() → { page, params }
-    ↓
-App.render()
-    ↓
-renderNavbar() → #navbar-placeholder
-    ↓
-render[Page]() → #page-content
-    ↓
-attachEventListeners()
-```
+| Layer | Technology | Notes |
+|---|---|---|
+| Frontend | Vanilla JavaScript ES6+ | No frameworks — zero build step |
+| Styling | Custom CSS with CSS variables | Responsive, mobile-first |
+| Routing | Hash-based SPA | `#home`, `#vehicles`, `#admin`, etc. |
+| Backend | Node.js + Express 4 | REST API + static file server |
+| Database | MongoDB Atlas | Cloud-hosted, Mongoose ODM |
+| Email | Nodemailer + Gmail SMTP | Free tier, 500 emails/day |
+| WhatsApp | `wa.me` deep link | No API cost, no approval required |
+| Hosting | Render.com | Free tier or paid, auto-deploy from GitHub |
+| Version Control | GitHub | `condolo/kakilin-property` |
 
 ---
 
 ## 3. File Structure
 
 ```
-kakilin-properties/
-├── index.html              HTML shell — loads CSS and JS, defines #navbar-placeholder and #page-content
-├── server.js               Node.js static file server (serves all files, uses process.env.PORT)
-├── package.json            Declares start script for Render.com deployment
+kakilin-property/
+├── index.html              # HTML shell — loads CSS + JS, defines mount points
+├── server.js               # Express server — API routes, Mongoose models, auto-seed
+├── package.json            # Dependencies and start script
+├── .env.example            # Environment variable template (copy to .env)
+├── .gitignore              # Excludes .env, node_modules
+├── CHANGELOG.md            # Version history
+├── DOCUMENTATION.md        # This file
 ├── css/
-│   └── styles.css          Full design system — variables, components, layouts, mobile breakpoints
+│   └── styles.css          # Full design system — variables, components, layouts
 └── js/
-    ├── data.js             Seed data + DB object (all data access)
-    └── app.js              All page renderers, admin logic, router, helpers
+    ├── data.js             # KENYA_COUNTIES, DEFAULT_SETTINGS, AppCache, DB object
+    └── app.js              # All page renderers, admin logic, router, helpers
 ```
 
-### index.html
-
-Minimal shell. Contains no page content — everything is injected by JavaScript:
-
+### `index.html`
+Minimal HTML shell. Contains no page content — everything is injected by JavaScript:
 ```html
 <div id="navbar-placeholder"></div>
 <main id="page-content"></main>
@@ -113,367 +93,532 @@ Minimal shell. Contains no page content — everything is injected by JavaScript
 <script src="js/app.js"></script>
 ```
 
+### `server.js`
+Single file containing:
+- All 9 Mongoose schemas and models
+- Generic `crudRouter()` factory
+- API routes for all 8 entity collections
+- Settings singleton endpoints
+- Auth endpoint
+- Email notification logic (Nodemailer)
+- Auto-seed function (`seedIfEmpty()`)
+- MongoDB connection and server start
+
+### `js/data.js`
+- `KENYA_COUNTIES` — all 47 counties with sub-counties (used by all dropdowns)
+- `DEFAULT_SETTINGS` — fallback site config if no settings saved in DB
+- `AppCache` — in-memory store populated from API at init
+- `DB` — unified data access object (sync reads from cache, async writes to API)
+
+### `js/app.js`
+- `App` object — page state and router
+- `parseHash()` — URL parser
+- All page render functions (`renderHome`, `renderVehicles`, etc.)
+- All admin section renderers
+- Helper functions: `fmt()`, `statusBadge()`, `vehicleTypeIcon()`, etc.
+- Lightbox, Toast, Modal utilities
+- WhatsApp float button injection
+- `attachEventListeners()` — runs after every page render
+- `applySettings()` — applies theme colors, favicon, page title
+
 ---
 
-## 4. Data Layer
+## 4. Environment Variables
 
-All data is stored and accessed through the `DB` object defined in `js/data.js`.
+Create a `.env` file in the project root (never commit this file):
 
-### Storage Keys
+```env
+# MongoDB Atlas connection string
+# Atlas → Cluster → Connect → Drivers → copy URI → replace <password>
+MONGODB_URI=mongodb+srv://username:password@cluster0.xxxxx.mongodb.net/kakilin?retryWrites=true&w=majority
 
-| Key | Contents |
-|---|---|
-| `kakilin_db` | All entity tables (JSON object) |
-| `kakilin_settings` | Site settings and service prices |
+# Gmail SMTP credentials for email notifications
+# Use a dedicated Gmail account (not personal)
+# Enable 2FA → generate App Password → paste here
+MAIL_USER=kakilin.notifications@gmail.com
+MAIL_PASS=xxxx xxxx xxxx xxxx
 
-### Tables
+# Where admin alerts are delivered (bookings, enquiries, service requests)
+ADMIN_EMAIL=admin@kakilin.co.ke
 
-| Table | Purpose | Key Fields |
-|---|---|---|
-| `properties` | Property listings | id, title, type, county, location, price, status, images[], features[] |
-| `developers` | Developer / agency profiles | id, name, contact, phone, commission |
-| `leads` | CRM — client inquiries | id, name, phone, email, interest, propertyId, status, date |
-| `bookings` | Viewing and consultation bookings | id, clientName, clientPhone, propertyId, date, time, type, status |
-| `services` | Due diligence / transfer requests | id, type, service, clientName, status, submittedDate |
-| `users` | Admin user accounts | id, name, username, password, role, email, active |
-
-### DB API
-
-```js
-DB.get('properties')              // returns full array
-DB.getById('properties', id)      // returns single record
-DB.insert('leads', record)        // auto-assigns ID, persists
-DB.update('properties', id, {})   // partial update, persists
-DB.delete('developers', id)       // removes record, persists
-DB.getSettings()                  // returns merged DEFAULT_SETTINGS + saved overrides
-DB.saveSettings(settingsObj)      // saves to kakilin_settings
-DB.reset()                        // clears all localStorage (factory reset)
+# Server port — Render sets this automatically
+PORT=3002
 ```
 
-### Property Types
+### Setting on Render.com
+Dashboard → your service → **Environment** tab → **Add Environment Variable** for each key above.
 
-`Land` | `House` | `Plot` | `Commercial`
-
-### Property Statuses
-
-`Available` | `Under Offer` | `Sold`
-
-### Lead / Booking Statuses
-
-Leads: `New Lead` | `Contacted` | `Viewing Scheduled` | `Closed`  
-Bookings: `Pending` | `Confirmed` | `Completed` | `Cancelled`  
-Service Requests: `Pending` | `In Progress` | `Completed`
-
-### Seed Data
-
-The app ships with seed data so it works immediately on first load:
-
-- **8 properties** across Nairobi, Kajiado, Mombasa, Kilifi, and other counties
-- **3 developers** (Kakilin Properties Ltd., Horizon Developers, Coastal Homes)
-- **5 seed leads**
-- **3 seed bookings**
-- **4 seed service requests**
-- **3 user accounts** (see Default Credentials)
+### Email Setup (Gmail App Password)
+1. Create a Gmail account: e.g. `kakilin.alerts@gmail.com`
+2. Enable **2-Step Verification** on that account
+3. Go to **Google Account → Security → App Passwords**
+4. Create app password for "Mail" → copy the 16-character code
+5. Paste as `MAIL_PASS` (with or without spaces)
 
 ---
 
-## 5. Public Pages & Features
+## 5. Architecture & Data Flow
 
-### Home Page (`#home`)
+### SPA Pattern
+```
+Browser URL change (hash)
+    ↓
+parseHash() → { page, params }
+    ↓
+App.render()
+    ↓
+render[Page]() → innerHTML of #page-content
+    ↓
+attachEventListeners()
+    ↓
+injectWhatsAppButton() (public pages only)
+```
 
-- **Hero section** with dynamic property search (type, county, area, max budget)
-- **Live statistics** computed from real DB data: Properties Listed, Transactions Closed, Counties Covered, Clients Served
-- **Featured listings** — 3 available properties shown as cards
-- **Why Choose Us** — 6 value proposition cards
-- **Services overview** — 4 service cards with prices pulled from admin-controlled settings
-- **Testimonials** — 3 client testimonials
-- **CTA section** — Browse Properties / Book a Consultation
+### Data Flow — Reads (Synchronous)
+```
+DB.init() called on DOMContentLoaded
+    ↓
+fetch('/api/properties'), fetch('/api/vehicles'), ... (all parallel)
+    ↓
+AppCache populated with all collections
+    ↓
+DB.get('properties') → returns AppCache.properties (sync, instant)
+DB.getById('vehicles', id) → finds by id or _id string match (sync)
+```
 
-**County-aware search:** Selecting a county populates the Area/Town dropdown dynamically from the `KENYA_COUNTIES` data (all 47 counties + sub-counties).
+### Data Flow — Writes (Async)
+```
+User submits form
+    ↓
+async function (e.g. submitInquiry)
+    ↓
+await DB.insert('leads', record)
+    ↓
+fetch POST /api/leads → Mongoose creates document → email triggered
+    ↓
+Response returned → AppCache.leads prepended with new record
+    ↓
+showToast('Success')
+```
+
+### Session Flow
+```
+Admin enters username + password
+    ↓
+adminLogin() checks DB.get('users') (from cache)
+    ↓
+Match found → App.adminUser = { id, name, username, role }
+             → sessionStorage.setItem('kakilin_admin', JSON.stringify(...))
+    ↓
+Page refresh → DOMContentLoaded restores from sessionStorage
+    ↓
+adminLogout() → App.adminUser = null → sessionStorage.removeItem(...)
+```
 
 ---
 
-### Properties Page (`#properties`)
+## 6. Database — MongoDB Atlas
 
-Full property listing page with live filtering:
+### Connection
+```js
+mongoose.connect(process.env.MONGODB_URI)
+```
+The server exits with a clear error if `MONGODB_URI` is not set.
 
-| Filter | Options |
-|---|---|
-| Search | Free text by name or location |
-| Type | Land, House, Plot, Commercial |
-| County | All 47 Kenyan counties |
-| Area/Town | Cascades from county selection |
-| Status | Available, Under Offer, Sold |
-| Max Price | Up to 1.5M / 3M / 5M / 10M / 15M / 30M / 50M / 100M |
+### Collections (Tables)
 
-Filters are applied via URL params so they are shareable and bookmarkable.
-
----
-
-### Property Detail Page (`#property?id=N`)
-
-- **Image gallery** — main image with clickable thumbnails (if images uploaded); falls back to a styled placeholder by type
-- **Photo count badge** on cards and gallery
-- **Specifications grid** — size, type, bedrooms, bathrooms, status, views
-- **Full description** and features/amenities tags
-- **Developer info** card
-- **Inquiry card** (sticky sidebar) — price, Book Viewing button, Send Inquiry button
-- **Due diligence upsell** panel
-- **Inline inquiry modal** → saves to leads table
-
----
-
-### Services Page (`#services`)
-
-Overview of all 4 core services with admin-controlled prices:
-
-1. **Due Diligence** — Title search, ownership, encumbrance, land history
-2. **Land Transfer** — Sale agreement to title registration
-3. **Land Subdivision** — Survey, county approval, new titles
-4. **Property Management** — Portfolio management for developers
-
-Also includes:
-- 4-step "How It Works" process
-- "Why Due Diligence Matters" callout panel
-
----
-
-### Due Diligence Page (`#due-diligence`)
-
-**5 individual checks with admin-controlled prices and turnaround times:**
-
-| Check | Default Price | Turnaround |
+| Collection | Model | Key Fields |
 |---|---|---|
-| Title Search | KSh 5,000 | 2–3 days |
-| Ownership Verification | KSh 4,000 | 1–2 days |
-| Land History Check | KSh 8,000 | 3–5 days |
-| Encumbrance Search | KSh 5,000 | 2–3 days |
-| Full Due Diligence Package | KSh 18,000 | 5–7 days |
+| `properties` | Property | title, type, county, location, price, status, developerId, images[], features[] |
+| `vehicles` | Vehicle | make, model, year, type, condition, mileage, fuel, transmission, engineCC, color, price, status, ownerId, images[], features[] |
+| `vehicleowners` | VehicleOwner | name, phone, email, idNumber, commission, joined, notes |
+| `developers` | Developer | name, contact, phone, email, totalUnits, unitsSold, status |
+| `leads` | Lead | name, phone, email, interest, propertyId, vehicleId, status, date, notes |
+| `bookings` | Booking | clientName, clientPhone, clientEmail, type, propertyId, date, time, status, notes |
+| `services` | Service | type, service, clientName, clientPhone, propertyDetails, status, submittedDate, completedDate |
+| `users` | User | name, username (unique), password, role, email, active, joined |
+| `settings` | Settings | siteName, tagline, heroTitle, phone, email, prices{}, colors, social links |
 
-**Submission form:** Name, phone, email, service type, property/LR Number, notes — saved to `services` table with `Pending` status.
+### ID Handling
+MongoDB IDs are 24-character hex strings (ObjectId). All `id` fields in the codebase are handled as strings.
 
----
+The `toJSON` virtual exposes `id` alongside `_id`:
+```js
+const jOpts = {
+  toJSON: {
+    virtuals: true,
+    transform: (_, ret) => { delete ret.__v; return ret; }
+  }
+};
+```
 
-### Land Transfer & Subdivision Page (`#transfers`)
+`DB.getById()` compares both `r.id` and `r._id` as strings:
+```js
+getById(table, id) {
+  return (AppCache[table] || []).find(r =>
+    String(r.id) === String(id) || String(r._id) === String(id)
+  );
+}
+```
 
-Tabbed interface: **Land Transfer** | **Subdivision**
+### Auto-Seed
+`seedIfEmpty()` runs on every server start. It only inserts data if the collection has 0 documents. Seed order:
+1. Settings
+2. Users (3 default accounts)
+3. Developers → Properties (uses real developer ObjectIds)
+4. VehicleOwners → Vehicles (uses real owner ObjectIds)
+5. Leads, Bookings, Services
 
-#### Land Transfer Tab
-
-**6-step process** (Sale Agreement → Valuation → Stamp Duty → LCB Consent → Title Transfer → Completion)
-
-**9-item required documents checklist** with colour-coded badges:
-
-| Document | Badge |
-|---|---|
-| Valuation Report | Mandatory |
-| Stamp Duty Payment (2% rural / 4% urban via KRA iTax) | Government Fee |
-| National IDs / Passports (buyer + seller) | Mandatory |
-| KRA PIN Certificates (buyer + seller) | Mandatory |
-| Passport Photos (2–3 each) | Mandatory |
-| Spousal Consent Affidavit | If Applicable |
-| Title Deed (Original) | Mandatory |
-| Land Registry Fees (~KSh 1,500–2,500) | Government Fee |
-| Land Control Board Consent (agricultural land) | If Agricultural |
-
-Service fee displayed dynamically from admin settings.
-
-#### Subdivision Tab
-
-**6-step process** (Survey → Subdivision Approval → County Council → New Titles → Plot Numbering → Handover)
-
-Required documents: LR Number / Title Deed, Survey Plan, ID/PIN, Land Control Board Certificate (if agricultural), County Council Approval, Rates Clearance Certificate.
-
----
-
-### Booking Page (`#booking`)
-
-**4-step booking form:**
-1. Booking type: Property Viewing or Consultation
-2. Property selection (pre-selected if arriving from property page)
-3. Date (from today onwards) and time slot (9 available slots)
-4. Client details: name, phone, email, notes
-
-Saves to `bookings` table. Confirmation modal shown on success.
+### Network Access
+MongoDB Atlas must allow connections from Render's IPs. For simplicity, allow `0.0.0.0/0` (all IPs):
+- Atlas → Network Access → Add IP Address → Allow Access from Anywhere
 
 ---
 
-### Contact Page (`#contact`)
+## 7. REST API Reference
 
-- Contact details (phone, email, address, hours) — pulled from admin settings
-- **OpenStreetMap embed** — interactive map (URL configurable by admin)
-- Contact inquiry form → saves to leads table
-- Social media links (configurable)
+Base URL: `https://kakilin-property.onrender.com/api` (or `http://localhost:3002/api`)
+
+### Generic CRUD (all 8 collections follow this pattern)
+
+| Method | Endpoint | Description |
+|---|---|---|
+| `GET` | `/api/properties` | All properties, sorted newest first |
+| `GET` | `/api/properties/:id` | Single property by ObjectId |
+| `POST` | `/api/properties` | Create new property |
+| `PUT` | `/api/properties/:id` | Update property (partial) |
+| `DELETE` | `/api/properties/:id` | Delete property |
+
+Same pattern applies to: `/api/vehicles`, `/api/vehicleOwners`, `/api/developers`, `/api/leads`, `/api/bookings`, `/api/services`, `/api/users`
+
+### Special Endpoints
+
+| Method | Endpoint | Description |
+|---|---|---|
+| `GET` | `/api/settings` | Get site settings (creates default if none) |
+| `PUT` | `/api/settings` | Update site settings (upsert) |
+| `POST` | `/api/auth/login` | Login — body: `{ username, password }` |
+| `GET` | `/api/health` | Health check — returns `{ ok: true, ts: ... }` |
+
+### Email Triggers (server-side, on POST only)
+| Endpoint | Admin Email | Client Email |
+|---|---|---|
+| `POST /api/leads` | ✅ New enquiry alert | ✅ Auto-reply if email provided |
+| `POST /api/bookings` | ✅ New booking alert | ✅ Confirmation if email provided |
+| `POST /api/services` | ✅ New service request | ❌ None yet |
 
 ---
 
-### Developer Portal (`#developer`)
+## 8. Frontend — SPA Router
 
-- Property management portal for registered developers
-- Developers can log in and manage their own listings
-- Tracks commission rates and portfolio performance
-- Links to admin property management
+### URL Structure
+```
+#home                      → renderHome()
+#properties                → renderProperties()
+#properties?type=Land      → renderProperties() with filters pre-applied
+#property?id=<objectId>    → renderPropertyDetail(id)
+#vehicles                  → renderVehicles()
+#vehicle?id=<objectId>     → renderVehicleDetail(id)
+#services                  → renderServices()
+#due-diligence             → renderDueDiligence()
+#transfers                 → renderTransfers()
+#booking                   → renderBooking()
+#booking?propertyId=<id>   → renderBooking() with property pre-selected
+#contact                   → renderContact()
+#admin                     → renderAdmin() (login wall if not authenticated)
+#developer                 → renderDeveloperPortal()
+```
+
+### Hash Parameter Parsing
+```js
+function parseHash() {
+  const hash = window.location.hash.slice(1) || 'home';
+  const [page, qs] = hash.split('?');
+  const params = {};
+  if (qs) new URLSearchParams(qs).forEach((v, k) => { params[k] = v; });
+  return { page, params };
+}
+```
+> **Note:** Parameters are kept as strings. Do not wrap IDs with `Number()` — MongoDB IDs are hex strings.
+
+### Navigation
+```js
+App.navigate('property', { id: '507f1f77bcf86cd799439011' });
+// Produces: #property?id=507f1f77bcf86cd799439011
+```
+
+### onclick ID Safety
+All onclick handlers that embed IDs must quote them:
+```js
+// ✅ Correct — ID quoted as string
+onclick="App.navigate('property', {id:'${p.id}'})"
+onclick="openEditPropertyModal('${p.id}')"
+
+// ❌ Wrong — breaks with MongoDB ObjectId strings
+onclick="App.navigate('property', {id:${p.id}})"
+```
 
 ---
 
-## 6. Admin Panel
+## 9. Public Pages
 
-Accessed at `#admin`. Protected by username/password login.
+### Home (`#home`)
+- Dual-tab hero search: Properties tab + Vehicles tab
+- Featured Properties grid (up to 3 available)
+- Featured Vehicles grid (up to 3 non-sold)
+- Hero stats: total properties, vehicles, deals closed, clients served
+- Why Choose Us — 6 value cards
+- Services overview — 4 service cards with live admin-controlled prices
+- Testimonials
+- Dual CTA: Browse Properties + Browse Vehicles + Book Consultation
+- WhatsApp floating button
+
+### Properties (`#properties`)
+Filters: Search text, Type, County, Area/Town (cascades from county), Status, Max Price
+
+### Property Detail (`#property?id=...`)
+- Image gallery with thumbnails + **clickable lightbox** (fullscreen expand, keyboard nav)
+- Spec grid, description, features, developer info
+- Booking and inquiry buttons
+- Due diligence upsell panel
+
+### Vehicles (`#vehicles`)
+Filters: Search text, Type, Make, Fuel, Transmission, Condition, Status, Max Price  
+Consignment CTA banner at bottom.
+
+### Vehicle Detail (`#vehicle?id=...`)
+- Image gallery with thumbnails + **clickable lightbox**
+- Spec grid: year, mileage, fuel, transmission, engine CC, condition, colour, views
+- Consignment disclosure section
+- Enquire / Book Inspection / Join Waiting List (if Reserved)
+- Pre-purchase inspection callout
+
+### Services (`#services`)
+4 service cards: Due Diligence, Land Transfer, Subdivision, Property Management — all prices from admin settings.
+
+### Due Diligence (`#due-diligence`)
+5 check types with prices and turnaround times. Submission form → saves to `services` table + admin email.
+
+### Land Transfer & Subdivision (`#transfers`)
+Tabbed page. Transfer tab: 6-step process, 9-item document checklist. Subdivision tab: 6-step process.
+
+### Booking (`#booking`)
+4-step form: type → property select → date/time → client details. Saves to `bookings` → admin + client email sent.
+
+### Contact (`#contact`)
+Phone, email, address from settings. OpenStreetMap embed. Inquiry form → saves to `leads`.
+
+---
+
+## 10. Admin Panel
+
+Accessed at `#admin`. Username/password login required.
 
 ### Sections
 
-| Section | Role Access | Description |
+| Section | Roles | Description |
 |---|---|---|
-| Overview | All | Dashboard with 8 KPI stat cards, recent leads table, upcoming bookings table |
-| Analytics | Super Admin only | Charts and trends — property types, lead pipeline, booking rates, service volumes |
-| Properties | Super Admin + Property Manager | Full property CRUD — add, edit, delete, upload images, manage status |
-| Leads & Clients | Super Admin + Sales | CRM — view, update status, add notes, track follow-ups |
-| Bookings | Super Admin + Sales | Manage bookings — confirm, complete, cancel |
-| Service Requests | Super Admin + Sales | Track due diligence and transfer requests through stages |
-| Developers | Super Admin only | Manage developer accounts |
-| User Management | Super Admin only | Add/edit/deactivate admin users, assign roles |
-| Customization | Super Admin only | Full site settings + service pricing |
+| Overview | All | 10 KPI stat cards, recent leads, upcoming bookings |
+| Analytics | Super Admin | Charts by type, lead pipeline, booking rates |
+| Properties | Super Admin + Property Manager | Full property CRUD — add, edit, delete, image URLs |
+| Vehicles | Super Admin + Property Manager | Full vehicle CRUD with owner assignment |
+| Vehicle Owners | Super Admin + Property Manager | Consignment seller management |
+| Leads & Clients | Super Admin + Sales | CRM — status, notes, history |
+| Bookings | Super Admin + Sales | Confirm, complete, cancel bookings |
+| Service Requests | Super Admin + Sales | Track due diligence/transfer progress |
+| Developers | Super Admin | Developer/agency accounts |
+| User Management | Super Admin | Add/edit/deactivate admin users |
+| Customization | Super Admin | Site settings + service pricing |
 
-### Properties Management
+### Adding Images to Properties/Vehicles
+Images are added as **URLs** (one per line) in the Add/Edit modal.
 
-- Add new property with: title, type, price, county, area/town, size, bedrooms, bathrooms, description, features, status, developer
-- **Image upload:** Admin pastes image URLs to populate gallery. Multiple images supported. Thumbnail shown on listing card; full gallery on detail page.
-- Edit all fields on existing properties
-- Delete property
-- View live property page directly from admin
+Recommended free image hosting options:
+- **Cloudinary** — https://cloudinary.com (free tier: 25GB)
+- **ImgBB** — https://imgbb.com (free)
+- **Google Drive** (public link, not ideal for performance)
 
-### Leads & CRM
+First image in the list is used as the card cover photo.
 
-- All leads from property inquiry forms, contact form, and due diligence requests appear here
-- Update lead status: New Lead → Contacted → Viewing Scheduled → Closed
-- Add internal notes per lead
-- Filter and view by status
+### Lead Statuses
+`New Lead` → `Contacted` → `Viewing Scheduled` → `Closed`
 
-### Bookings
+### Booking Statuses
+`Pending` → `Confirmed` → `Completed` | `Cancelled`
 
-- All property viewings and consultations
-- Update status: Pending → Confirmed → Completed / Cancelled
-- See linked property details
-
-### Service Requests
-
-- Track due diligence and transfer service requests
-- Update progress status: Pending → In Progress → Completed
-- Record completion date
-
-### Analytics Dashboard
-
-- Property portfolio breakdown by type (Land / House / Plot / Commercial)
-- Lead pipeline funnel by status
-- Booking volume and completion rates
-- Service request volume by type
-- Top counties by listing count
+### Service Request Statuses
+`Pending` → `In Progress` → `Completed`
 
 ---
 
-## 7. User Roles & Access Control
-
-Three roles are defined:
+## 11. User Roles & Access Control
 
 | Role | Label | Access |
 |---|---|---|
-| `superadmin` | ⭐ Super Admin | Full access to all sections including Analytics, Developers, User Management, Customization |
+| `superadmin` | ⭐ Super Admin | Full access — all sections |
 | `sales` | 💼 Sales Manager | Overview, Leads, Bookings, Service Requests |
-| `properties` | 🏗️ Property Manager | Overview, Properties |
+| `properties` | 🏗️ Property Manager | Overview, Properties, Vehicles, Vehicle Owners |
 
-The admin sidebar is built dynamically — menu items only appear if the logged-in user's role has permission. A Sales Manager will never see User Management or Customization. A Property Manager will not see Leads or Bookings.
+Admin sidebar items are rendered conditionally based on role. A Sales Manager will never see Customization or User Management.
 
-Login is checked against the `users` table in `localStorage`. Accounts can be activated/deactivated by Super Admin without deletion.
+### Session Persistence
+- Login state stored in `sessionStorage` as `kakilin_admin` JSON
+- Survives page refresh; cleared on browser tab close or explicit logout
+- Does **not** survive across different browsers or incognito sessions
+
+> ⚠️ **Security Note:** Passwords are currently stored in plain text in MongoDB. Before going to production with sensitive data, implement bcrypt password hashing.
 
 ---
 
-## 8. Service Pricing System
+## 12. Notifications — Email & WhatsApp
 
-All service prices shown to the public are controlled by the Super Admin from **Admin → Customization → Service Pricing**.
+### Email (Nodemailer)
 
-| Service | Default Price | Shown On |
+**Required env vars:** `MAIL_USER`, `MAIL_PASS`, `ADMIN_EMAIL`
+
+```js
+// server.js — sendMail helper
+async function sendMail({ to, subject, html }) {
+  if (!process.env.MAIL_USER || !process.env.MAIL_PASS) return; // silent skip
+  await mailer.sendMail({ from: '"Kakilin Properties" <...>', to, subject, html });
+}
+```
+
+If the env vars are not set, emails are skipped silently — the server continues working normally.
+
+**Triggers:**
+
+| Event | Admin email | Client email |
 |---|---|---|
-| Title Search | KSh 5,000 | Due Diligence page |
-| Ownership Verification | KSh 4,000 | Due Diligence page |
-| Land History Check | KSh 8,000 | Due Diligence page |
-| Encumbrance Search | KSh 5,000 | Due Diligence page |
-| Full Due Diligence Package | KSh 18,000 | Due Diligence page, Services page, Home page |
-| Land Transfer | KSh 15,000 | Transfers page, Services page, Home page |
-| Land Subdivision | KSh 30,000 | Transfers page, Services page, Home page |
-| Property Management | KSh 0 (Custom) | Services page, Home page |
+| New enquiry (lead) | ✅ | ✅ (if email provided) |
+| New booking | ✅ | ✅ (if email provided) |
+| New service request | ✅ | ❌ |
 
-Setting a price to `0` displays **"Custom Pricing"** or **"Custom Packages"** on the public pages. All 4 public service surfaces (Home, Services, Due Diligence, Transfers) read prices live from admin settings — no code changes required to update pricing.
+### WhatsApp Floating Button
+
+No API or approval needed. Uses `wa.me` deep link:
+```
+https://wa.me/<phone>?text=<pre-filled message>
+```
+- Phone number read from `DB.getSettings().phone` — update it in Admin → Customization
+- Button injected on all public pages via `injectWhatsAppButton()` called in `attachEventListeners()`
+- Automatically removed on admin pages
 
 ---
 
-## 9. Settings & Customization
+## 13. Service Pricing System
 
-All settings are saved in `localStorage` under `kakilin_settings` and merged with `DEFAULT_SETTINGS` on read, so defaults are always preserved as fallback.
+All service prices shown publicly are controlled by **Admin → Customization → Service Pricing**.
+
+| Setting Key | Default | Shown On |
+|---|---|---|
+| `titleSearch` | 5,000 | Due Diligence page |
+| `ownershipVerification` | 4,000 | Due Diligence page |
+| `landHistoryCheck` | 8,000 | Due Diligence page |
+| `encumbranceSearch` | 5,000 | Due Diligence page |
+| `fullDueDiligence` | 18,000 | Due Diligence + Services + Home |
+| `landTransfer` | 15,000 | Transfers + Services + Home |
+| `subdivision` | 30,000 | Transfers + Services + Home |
+| `propertyManagement` | 0 | Services + Home |
+
+Setting a price to `0` displays **"Custom Pricing"** on public pages.
+
+---
+
+## 14. Settings & Customization
+
+All settings stored in the `settings` MongoDB collection (singleton document). Falls back to `DEFAULT_SETTINGS` from `data.js` if nothing is saved.
 
 **Configurable from Admin → Customization:**
 
-| Setting | Description |
+| Setting | Effect |
 |---|---|
-| Site Name | Used in navbar and page titles |
-| Tagline | Under site name in navbar |
-| Logo URL | URL to logo image (replaces 🏘️ emoji icon) |
+| Site Name | Navbar brand name, page title |
+| Tagline | Under brand name in navbar |
+| Logo URL | Replaces 🏘️ emoji icon in navbar |
 | Favicon URL | Browser tab icon |
-| Primary Color | Main brand color (navbar, buttons, hero) |
-| Accent Color | Highlight color (prices, badges, CTAs) |
-| Phone / Email / Address / Hours | Used on Contact page and footer |
-| Map Embed URL | OpenStreetMap iframe URL for Contact page map |
-| Hero Title | Main headline on homepage |
-| Hero Subtitle | Sub-copy below headline |
-| Social links | Facebook, Twitter, Instagram, LinkedIn |
-| Service Prices | All 8 service prices (see Section 8) |
+| Primary Color | Navbar, buttons, hero background |
+| Accent Color | Prices, badges, CTAs |
+| Phone | Contact page, WhatsApp button, footer |
+| Email | Contact page, footer |
+| Address | Contact page, footer |
+| Business Hours | Contact page |
+| Map Embed URL | OpenStreetMap iframe on Contact page |
+| Hero Title | Homepage main headline |
+| Hero Subtitle | Homepage sub-copy |
+| Social Links | Facebook, Twitter, Instagram, LinkedIn |
+| Service Prices | All 8 prices (see Section 13) |
 
 ---
 
-## 10. Deployment
+## 15. Deployment — Render.com
 
-### Server
+### Live URL
+`https://kakilin-property.onrender.com`
 
-`server.js` is a minimal Node.js static file server:
+### GitHub Repository
+`https://github.com/condolo/kakilin-property`
 
-```js
-const PORT = process.env.PORT || 3002;
-```
-
-Render.com injects `PORT` automatically. The server serves all static files with correct MIME types.
-
-### Render.com Setup
+### Render Service Configuration
 
 | Setting | Value |
 |---|---|
 | Environment | Node |
-| Build Command | *(leave blank)* |
+| Branch | `main` |
+| Build Command | `npm install` |
 | Start Command | `node server.js` |
-| Branch | `main` (or your default branch) |
-| Auto-Deploy | Yes (on push to GitHub) |
+| Auto-Deploy | Yes (on every push to `main`) |
+| Free Tier | Spins down after 15 min inactivity (50s cold start delay) |
 
-### Deployment Steps
+### Environment Variables on Render
+Set these under **Service → Environment → Add Environment Variable**:
 
-1. Push all files to GitHub repository
-2. Connect repository to Render.com
-3. Set start command to `node server.js`
-4. Deploy — site goes live at your Render URL
+| Key | Value |
+|---|---|
+| `MONGODB_URI` | Your Atlas connection string |
+| `MAIL_USER` | Gmail address for notifications |
+| `MAIL_PASS` | Gmail App Password (16 chars) |
+| `ADMIN_EMAIL` | Admin's receiving email |
 
-### Files Required in Repository
+> `PORT` is set automatically by Render — do not override it.
 
-```
-index.html
-server.js
-package.json
-css/styles.css
-js/data.js
-js/app.js
-```
+### Deploy Flow
+1. Make code changes locally
+2. `git add` → `git commit` → `git push origin main`
+3. Render detects the push and automatically redeploys
+4. Check deploy logs in Render dashboard if it fails
 
 ---
 
-## 11. Default Credentials
+## 16. Local Development Setup
 
-> These are the out-of-the-box admin accounts loaded on first use. Change passwords after initial setup.
+```bash
+# 1. Clone the repository
+git clone https://github.com/condolo/kakilin-property.git
+cd kakilin-property
+
+# 2. Install dependencies
+npm install
+
+# 3. Create your .env file
+cp .env.example .env
+# Edit .env with your MongoDB URI and email credentials
+
+# 4. Start the server
+node server.js
+# → Server running at http://localhost:3002
+# → MongoDB connected ✅
+# → Auto-seed runs if collections are empty ✅
+```
+
+### No Build Step Required
+The frontend is pure vanilla JS/CSS. No webpack, no bundler, no transpilation. Edit `js/app.js` or `css/styles.css` and refresh the browser.
+
+---
+
+## 17. Default Credentials
+
+> Change passwords after first login. These are seeded on first startup.
 
 | Name | Username | Password | Role |
 |---|---|---|---|
@@ -481,22 +626,59 @@ js/app.js
 | Sales Manager | `sales` | `sales2024` | sales |
 | Property Manager | `listings` | `listings24` | properties |
 
-**Login:** Navigate to `#admin` and enter the username and password.
+**Login:** Navigate to `#admin` → enter username and password.
 
-Super Admin can add, edit, deactivate, or delete other admin accounts from **Admin → User Management**. The Super Admin account cannot be deleted.
+The Super Admin account cannot be deleted. Other accounts can be deactivated or deleted from **Admin → User Management**.
 
 ---
 
-## Appendix: Kenya Counties
+## 18. Known Limitations & Roadmap
 
-The app includes all **47 Kenyan counties** with their sub-counties and major towns. County data is in `KENYA_COUNTIES` in `js/data.js`. It powers:
+### Current Limitations
 
+| Issue | Severity | Status |
+|---|---|---|
+| Passwords stored in plain text | 🔴 High | Not yet hashed (bcrypt needed) |
+| No file upload — images by URL only | 🔴 High | Cloudinary integration planned |
+| No pagination on large listings | 🟡 Medium | Will slow down at 100+ records |
+| No SEO meta tags per page | 🟡 Medium | SPA pages not indexable by Google |
+| Contact form doesn't send email | 🟡 Medium | Saves lead but no email trigger |
+| No input sanitization (XSS) | 🟡 Medium | innerHTML used with user content |
+| Analytics section uses mock data | 🟢 Low | Charts not wired to live DB queries |
+
+### Planned Features (Next Phases)
+
+| Feature | Phase |
+|---|---|
+| Image upload via Cloudinary | Phase 3 |
+| bcrypt password hashing | Phase 3 |
+| M-Pesa Daraja STK Push integration | Phase 4 |
+| Tenant / rental management module | Phase 4 |
+| Online rent payment + receipts | Phase 4 |
+| Automated payment reminders (SMS/email) | Phase 4 |
+| Google Analytics integration | Phase 3 |
+| Sitemap.xml for SEO | Phase 3 |
+| Property comparison tool | Phase 5 |
+| Pagination / infinite scroll | Phase 3 |
+
+---
+
+## Appendix A — Kenya Counties Data
+
+`KENYA_COUNTIES` in `js/data.js` covers all **47 Kenyan counties** with sub-counties and major towns. Used by:
 - Hero search county/area cascading dropdowns
-- Properties page filtering cascading dropdowns
-- Property listing form county/area fields in admin
+- Properties page filter dropdowns
+- Property add/edit form in admin
 
-Counties covered include: Nairobi, Mombasa, Kwale, Kilifi, Tana River, Lamu, Taita-Taveta, Garissa, Wajir, Mandera, Marsabit, Isiolo, Meru, Tharaka-Nithi, Embu, Kitui, Machakos, Makueni, Nyandarua, Nyeri, Kirinyaga, Murang'a, Kiambu, Turkana, West Pokot, Samburu, Trans-Nzoia, Uasin Gishu, Elgeyo-Marakwet, Nandi, Baringo, Laikipia, Nakuru, Narok, Kajiado, Kericho, Bomet, Kakamega, Vihiga, Bungoma, Busia, Siaya, Kisumu, Homa Bay, Migori, Kisii, Nyamira.
+## Appendix B — Vehicle Types Supported
+
+`SUV` · `Sedan` · `Pickup` · `Hatchback` · `Van` · `Bus` · `Truck` · `Motorbike` · `Coupe`
+
+## Appendix C — Property Types
+
+`Land` · `House` · `Plot` · `Commercial`
 
 ---
 
-*Kakilin Properties — Kenya's Trusted Property Partner*
+*Kakilin Properties — Kenya's Trusted Property & Vehicle Partner*  
+*Documentation maintained alongside the codebase. Update this file with every significant change.*
