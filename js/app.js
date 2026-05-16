@@ -3,6 +3,7 @@
    ============================================================ */
 
 /* ── App state ── */
+let _galleryActiveIdx = 0;  // tracks which gallery thumbnail is active for lightbox
 const App = {
   page: 'home',
   subpage: null,
@@ -79,6 +80,61 @@ function setGalleryMain(url, el) {
   document.querySelectorAll('.gallery-thumb').forEach(t => t.classList.remove('active'));
   el.classList.add('active');
 }
+
+/* ── Photo Lightbox ── */
+let _lightboxImages = [];
+let _lightboxIdx = 0;
+
+function openLightbox(images, idx) {
+  _lightboxImages = images;
+  _lightboxIdx = idx;
+  const ov = document.createElement('div');
+  ov.id = 'lightbox-overlay';
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.95);z-index:9999;display:flex;align-items:center;justify-content:center;flex-direction:column;';
+  ov.innerHTML = `
+    <button onclick="closeLightbox()" style="position:absolute;top:20px;right:24px;background:none;border:none;color:#fff;font-size:2rem;cursor:pointer;line-height:1">✕</button>
+    <div style="position:relative;max-width:90vw;max-height:80vh;display:flex;align-items:center;gap:16px">
+      <button id="lb-prev" onclick="lightboxNav(-1)" style="background:rgba(255,255,255,.15);border:none;color:#fff;font-size:1.8rem;cursor:pointer;padding:12px 16px;border-radius:50%;flex-shrink:0">‹</button>
+      <img id="lb-img" src="${images[idx]}" style="max-width:80vw;max-height:78vh;object-fit:contain;border-radius:8px;box-shadow:0 8px 48px rgba(0,0,0,.5)" onclick="event.stopPropagation()">
+      <button id="lb-next" onclick="lightboxNav(1)" style="background:rgba(255,255,255,.15);border:none;color:#fff;font-size:1.8rem;cursor:pointer;padding:12px 16px;border-radius:50%;flex-shrink:0">›</button>
+    </div>
+    <div style="color:rgba(255,255,255,.6);margin-top:16px;font-size:.88rem" id="lb-counter">${idx+1} / ${images.length}</div>
+    <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;justify-content:center;max-width:90vw">
+      ${images.map((img,i) => `<div onclick="lightboxGoto(${i})" style="width:52px;height:40px;background:url('${img}') center/cover;border-radius:4px;cursor:pointer;opacity:${i===idx?1:.5};border:${i===idx?'2px solid #fff':'2px solid transparent'}" id="lb-dot-${i}"></div>`).join('')}
+    </div>`;
+  ov.addEventListener('click', e => { if (e.target === ov) closeLightbox(); });
+  document.body.appendChild(ov);
+  document.body.style.overflow = 'hidden';
+  // Hide prev/next if only 1 image
+  if (images.length <= 1) { document.getElementById('lb-prev').style.visibility='hidden'; document.getElementById('lb-next').style.visibility='hidden'; }
+}
+
+function closeLightbox() {
+  document.getElementById('lightbox-overlay')?.remove();
+  document.body.style.overflow = '';
+}
+
+function lightboxNav(dir) {
+  lightboxGoto((_lightboxIdx + dir + _lightboxImages.length) % _lightboxImages.length);
+}
+
+function lightboxGoto(idx) {
+  _lightboxIdx = idx;
+  document.getElementById('lb-img').src = _lightboxImages[idx];
+  document.getElementById('lb-counter').textContent = `${idx+1} / ${_lightboxImages.length}`;
+  document.querySelectorAll('[id^="lb-dot-"]').forEach((el, i) => {
+    el.style.opacity = i === idx ? 1 : 0.5;
+    el.style.borderColor = i === idx ? '#fff' : 'transparent';
+  });
+}
+
+// Keyboard navigation for lightbox
+document.addEventListener('keydown', e => {
+  if (!document.getElementById('lightbox-overlay')) return;
+  if (e.key === 'ArrowRight') lightboxNav(1);
+  if (e.key === 'ArrowLeft')  lightboxNav(-1);
+  if (e.key === 'Escape')     closeLightbox();
+});
 
 function showToast(msg, type = 'success') {
   let container = document.querySelector('.toast-container');
@@ -236,50 +292,104 @@ function renderHome() {
   return `
   <section class="hero">
     <div class="container hero-content">
-      <div style="max-width:700px">
-        <div class="hero-eyebrow">🏆 Kenya's Trusted Property Partner</div>
-        <h1>${s.heroTitle.replace('Find Your Perfect Property in Kenya','Find Your Perfect <span>Property</span> in Kenya')}</h1>
-        <p>${s.heroSubtitle}</p>
-        <div class="hero-search">
-          <div class="form-group">
-            <label>Property Type</label>
-            <select class="form-control" id="hs-type">
-              <option value="">All Types</option>
-              <option>Land</option><option>House</option><option>Plot</option><option>Commercial</option>
-            </select>
+      <div style="max-width:780px">
+        <div class="hero-eyebrow">🏆 Kenya's Trusted Property & Vehicle Partner</div>
+        <h1>Find Your Perfect <span>Property</span> or <span>Vehicle</span> in Kenya</h1>
+        <p>From premium land and plots to family homes and quality vehicles — we connect buyers with verified listings and handle every step with full legal due diligence.</p>
+
+        <!-- Search tabs -->
+        <div class="hero-search" style="padding:0;overflow:hidden">
+          <div style="display:flex;background:rgba(255,255,255,.08);border-radius:var(--radius-lg) var(--radius-lg) 0 0">
+            <button id="hs-tab-prop" onclick="switchHeroTab('prop')" style="flex:1;padding:14px;font-weight:700;font-size:.92rem;background:rgba(255,255,255,.18);color:#fff;border:none;border-radius:var(--radius-lg) 0 0 0;cursor:pointer;border-bottom:3px solid var(--accent)">🏗️ Properties</button>
+            <button id="hs-tab-veh" onclick="switchHeroTab('veh')" style="flex:1;padding:14px;font-weight:700;font-size:.92rem;background:none;color:rgba(255,255,255,.6);border:none;border-radius:0 var(--radius-lg) 0 0;cursor:pointer;border-bottom:3px solid transparent">🚗 Vehicles</button>
           </div>
-          <div class="form-group">
-            <label>County</label>
-            <select class="form-control" id="hs-county" onchange="updateHeroAreas()">
-              <option value="">All Counties</option>
-              ${Object.keys(KENYA_COUNTIES).sort().map(c => `<option>${c}</option>`).join('')}
-            </select>
+
+          <!-- Property search -->
+          <div id="hs-panel-prop" style="display:flex;flex-wrap:wrap;gap:12px;padding:20px;background:rgba(255,255,255,.08)">
+            <div class="form-group" style="flex:1;min-width:140px">
+              <label style="color:rgba(255,255,255,.75)">Property Type</label>
+              <select class="form-control" id="hs-type">
+                <option value="">All Types</option>
+                <option>Land</option><option>House</option><option>Plot</option><option>Commercial</option>
+              </select>
+            </div>
+            <div class="form-group" style="flex:1;min-width:140px">
+              <label style="color:rgba(255,255,255,.75)">County</label>
+              <select class="form-control" id="hs-county" onchange="updateHeroAreas()">
+                <option value="">All Counties</option>
+                ${Object.keys(KENYA_COUNTIES).sort().map(c => `<option>${c}</option>`).join('')}
+              </select>
+            </div>
+            <div class="form-group" style="flex:1;min-width:140px">
+              <label style="color:rgba(255,255,255,.75)">Area / Town</label>
+              <select class="form-control" id="hs-area">
+                <option value="">All Areas</option>
+              </select>
+            </div>
+            <div class="form-group" style="flex:1;min-width:140px">
+              <label style="color:rgba(255,255,255,.75)">Max Budget (KSh)</label>
+              <select class="form-control" id="hs-price">
+                <option value="">Any Budget</option>
+                <option value="1500000">Up to 1.5M</option>
+                <option value="3000000">Up to 3M</option>
+                <option value="5000000">Up to 5M</option>
+                <option value="10000000">Up to 10M</option>
+                <option value="15000000">Up to 15M</option>
+                <option value="30000000">Up to 30M</option>
+                <option value="50000000">Up to 50M</option>
+                <option value="100000000">Up to 100M</option>
+              </select>
+            </div>
+            <div style="display:flex;align-items:flex-end">
+              <button class="btn btn-primary" onclick="heroSearch()">🔍 Search</button>
+            </div>
           </div>
-          <div class="form-group">
-            <label>Area / Town</label>
-            <select class="form-control" id="hs-area">
-              <option value="">All Areas</option>
-            </select>
+
+          <!-- Vehicle search -->
+          <div id="hs-panel-veh" style="display:none;flex-wrap:wrap;gap:12px;padding:20px;background:rgba(255,255,255,.08)">
+            <div class="form-group" style="flex:1;min-width:130px">
+              <label style="color:rgba(255,255,255,.75)">Vehicle Type</label>
+              <select class="form-control" id="hs-vtype">
+                <option value="">All Types</option>
+                ${['SUV','Sedan','Pickup','Hatchback','Van','Bus','Truck','Motorbike','Coupe'].map(t=>`<option>${t}</option>`).join('')}
+              </select>
+            </div>
+            <div class="form-group" style="flex:1;min-width:130px">
+              <label style="color:rgba(255,255,255,.75)">Fuel Type</label>
+              <select class="form-control" id="hs-vfuel">
+                <option value="">Any Fuel</option>
+                <option>Petrol</option><option>Diesel</option><option>Hybrid</option><option>Electric</option>
+              </select>
+            </div>
+            <div class="form-group" style="flex:1;min-width:130px">
+              <label style="color:rgba(255,255,255,.75)">Transmission</label>
+              <select class="form-control" id="hs-vtrans">
+                <option value="">Any</option>
+                <option>Automatic</option><option>Manual</option>
+              </select>
+            </div>
+            <div class="form-group" style="flex:1;min-width:130px">
+              <label style="color:rgba(255,255,255,.75)">Max Price (KSh)</label>
+              <select class="form-control" id="hs-vprice">
+                <option value="">Any Price</option>
+                <option value="500000">Up to 500K</option>
+                <option value="1000000">Up to 1M</option>
+                <option value="2000000">Up to 2M</option>
+                <option value="3500000">Up to 3.5M</option>
+                <option value="5000000">Up to 5M</option>
+                <option value="8000000">Up to 8M</option>
+                <option value="15000000">Up to 15M</option>
+              </select>
+            </div>
+            <div style="display:flex;align-items:flex-end">
+              <button class="btn btn-primary" onclick="heroVehicleSearch()">🔍 Search</button>
+            </div>
           </div>
-          <div class="form-group">
-            <label>Max Budget (KSh)</label>
-            <select class="form-control" id="hs-price">
-              <option value="">Any Budget</option>
-              <option value="1500000">Up to 1.5M</option>
-              <option value="3000000">Up to 3M</option>
-              <option value="5000000">Up to 5M</option>
-              <option value="10000000">Up to 10M</option>
-              <option value="15000000">Up to 15M</option>
-              <option value="30000000">Up to 30M</option>
-              <option value="50000000">Up to 50M</option>
-              <option value="100000000">Up to 100M</option>
-            </select>
-          </div>
-          <button class="btn btn-primary" onclick="heroSearch()">🔍 Search</button>
         </div>
-        <div class="hero-stats">
+
+        <div class="hero-stats" style="margin-top:28px">
           <div><div class="hero-stat-num">${totalProps}+</div><div class="hero-stat-label">Properties Listed</div></div>
-          <div><div class="hero-stat-num">${allVehs.length}+</div><div class="hero-stat-label">Vehicles Available</div></div>
+          <div><div class="hero-stat-num">${allVehs.length}+</div><div class="hero-stat-label">Vehicles for Sale</div></div>
           <div><div class="hero-stat-num">${sold + soldVehs}+</div><div class="hero-stat-label">Deals Closed</div></div>
           <div><div class="hero-stat-num">${totalLeads}+</div><div class="hero-stat-label">Clients Served</div></div>
         </div>
@@ -411,10 +521,11 @@ function renderHome() {
   <!-- CTA -->
   <div class="cta-section">
     <div class="container">
-      <h2>Ready to Find Your Property?</h2>
-      <p>Talk to our team today. We'll help you navigate the market with confidence and clarity.</p>
+      <h2>Ready to Find Your Next Property or Vehicle?</h2>
+      <p>Talk to our team today. We'll help you navigate the market with confidence and clarity — whether it's land, a home, or your next car.</p>
       <div class="cta-actions">
-        <button class="btn btn-primary" onclick="App.navigate('properties')">Browse Properties</button>
+        <button class="btn btn-primary" onclick="App.navigate('properties')">🏗️ Browse Properties</button>
+        <button class="btn btn-primary" onclick="App.navigate('vehicles')" style="background:var(--accent)">🚗 Browse Vehicles</button>
         <button class="btn btn-outline-light" onclick="App.navigate('booking')">📅 Book a Consultation</button>
       </div>
     </div>
@@ -428,6 +539,42 @@ function heroSearch() {
   const area   = document.getElementById('hs-area')?.value   || '';
   const price  = document.getElementById('hs-price')?.value  || '';
   App.navigate('properties', { type, county, area, maxPrice: price });
+}
+
+function heroVehicleSearch() {
+  App.navigate('vehicles', {
+    type:     document.getElementById('hs-vtype')?.value  || '',
+    fuel:     document.getElementById('hs-vfuel')?.value  || '',
+    trans:    document.getElementById('hs-vtrans')?.value || '',
+    maxPrice: document.getElementById('hs-vprice')?.value || '',
+  });
+}
+
+function switchHeroTab(tab) {
+  const propPanel = document.getElementById('hs-panel-prop');
+  const vehPanel  = document.getElementById('hs-panel-veh');
+  const propTab   = document.getElementById('hs-tab-prop');
+  const vehTab    = document.getElementById('hs-tab-veh');
+  if (!propPanel || !vehPanel) return;
+  if (tab === 'prop') {
+    propPanel.style.display = 'flex';
+    vehPanel.style.display  = 'none';
+    propTab.style.background = 'rgba(255,255,255,.18)';
+    propTab.style.color      = '#fff';
+    propTab.style.borderBottomColor = 'var(--accent)';
+    vehTab.style.background  = 'none';
+    vehTab.style.color       = 'rgba(255,255,255,.6)';
+    vehTab.style.borderBottomColor  = 'transparent';
+  } else {
+    vehPanel.style.display  = 'flex';
+    propPanel.style.display = 'none';
+    vehTab.style.background  = 'rgba(255,255,255,.18)';
+    vehTab.style.color       = '#fff';
+    vehTab.style.borderBottomColor  = 'var(--accent)';
+    propTab.style.background = 'none';
+    propTab.style.color      = 'rgba(255,255,255,.6)';
+    propTab.style.borderBottomColor = 'transparent';
+  }
 }
 
 function updateHeroAreas() {
@@ -452,7 +599,7 @@ function updateFilterAreas() {
 function renderPropertyCard(p) {
   const firstImg = p.images && p.images.length > 0 ? p.images[0] : null;
   return `
-  <div class="property-card" onclick="App.navigate('property', {id:${p.id}})">
+  <div class="property-card" onclick="App.navigate('property', {id:'${p.id}'})"  style="cursor:pointer">
     <div class="property-card-img ${firstImg ? '' : propertyTypeClass(p.type)}" style="${firstImg ? `background:url('${firstImg}') center/cover no-repeat` : ''}">
       ${!firstImg ? `<div class="property-card-icon">${propertyTypeIcon(p.type)}</div>` : ''}
       <div class="property-card-badges">
@@ -472,7 +619,7 @@ function renderPropertyCard(p) {
       </div>
       <div class="property-card-footer">
         <div class="property-card-price">${fmt(p.price)}<span> total</span></div>
-        <button class="btn btn-primary btn-sm" onclick="event.stopPropagation();App.navigate('booking',{propertyId:${p.id}})">Book Viewing</button>
+        <button class="btn btn-primary btn-sm" onclick="event.stopPropagation();App.navigate('booking',{propertyId:'${p.id}'})">Book Viewing</button>
       </div>
     </div>
   </div>`;
@@ -610,11 +757,11 @@ function renderPropertyDetail(id) {
   <div>
     ${hasImgs ? `
     <div class="prop-gallery">
-      <div class="prop-gallery-main" id="gallery-main" style="background:url('${p.images[0]}') center/cover no-repeat">
+      <div class="prop-gallery-main" id="gallery-main" style="background:url('${p.images[0]}') center/cover no-repeat;cursor:zoom-in" onclick="openLightbox(${JSON.stringify(p.images)},_galleryActiveIdx||0)">
         <div class="hero-badges" style="position:absolute;top:16px;left:16px;opacity:1">${statusBadge(p.status)}<span class="badge badge-gray" style="margin-left:6px">${p.type}</span></div>
-        ${p.images.length > 1 ? `<div class="gallery-counter">📷 ${p.images.length} photos</div>` : ''}
+        ${p.images.length > 1 ? `<div class="gallery-counter" style="cursor:zoom-in">📷 ${p.images.length} photos · Click to expand</div>` : '<div class="gallery-counter" style="cursor:zoom-in">🔍 Click to expand</div>'}
       </div>
-      ${p.images.length > 1 ? `<div class="prop-gallery-thumbs">${p.images.slice(0,5).map((img,i) => `<div class="gallery-thumb ${i===0?'active':''}" style="background:url('${img}') center/cover" onclick="setGalleryMain('${img}',this)"></div>`).join('')}</div>` : ''}
+      ${p.images.length > 1 ? `<div class="prop-gallery-thumbs">${p.images.slice(0,5).map((img,i) => `<div class="gallery-thumb ${i===0?'active':''}" style="background:url('${img}') center/cover;cursor:zoom-in" onclick="setGalleryMain('${img}',this);_galleryActiveIdx=${i}"></div>`).join('')}</div>` : ''}
     </div>` : `
     <div class="property-detail-hero ${propertyTypeClass(p.type)}">
       <span>${propertyTypeIcon(p.type)}</span>
@@ -690,8 +837,8 @@ function renderPropertyDetail(id) {
             ${p.status === 'Sold' ? `
               <div class="alert alert-error">This property has been sold. <span style="cursor:pointer;text-decoration:underline" onclick="App.navigate('properties')">View similar listings.</span></div>
             ` : `
-              <button class="btn btn-primary btn-block" style="margin-bottom:10px" onclick="App.navigate('booking',{propertyId:${p.id}})">📅 Book a Viewing</button>
-              <button class="btn btn-outline btn-block" onclick="openInquiryModal(${p.id})">✉️ Send Inquiry</button>
+              <button class="btn btn-primary btn-block" style="margin-bottom:10px" onclick="App.navigate('booking',{propertyId:'${p.id}'})">📅 Book a Viewing</button>
+              <button class="btn btn-outline btn-block" onclick="openInquiryModal('${p.id}')">✉️ Send Inquiry</button>
               <div class="divider"></div>
               <div style="background:var(--bg);border-radius:var(--radius);padding:14px;font-size:.84rem;color:var(--text-light)">
                 <p style="margin-bottom:8px">📞 <strong>Call us:</strong> +254 700 000 000</p>
@@ -738,7 +885,7 @@ function openInquiryModal(propertyId) {
     </div>
     <div class="modal-footer">
       <button class="btn btn-outline" onclick="closeModal()">Cancel</button>
-      <button class="btn btn-primary" onclick="submitInquiry(${propertyId})">Send Inquiry</button>
+      <button class="btn btn-primary" onclick="submitInquiry('${propertyId}')">Send Inquiry</button>
     </div>`);
 }
 
@@ -1218,7 +1365,7 @@ async function submitBooking() {
   const date  = document.getElementById('b-date')?.value;
   const time  = document.getElementById('b-time')?.value;
   if (!name || !phone || !date || !time) { showToast('Please fill in all required fields.', 'error'); return; }
-  const propertyId = _bookingType === 'viewing' ? Number(document.getElementById('b-property')?.value) || null : null;
+  const propertyId = _bookingType === 'viewing' ? (document.getElementById('b-property')?.value || null) : null;
   await DB.insert('bookings', { type: _bookingType === 'viewing' ? 'Property Viewing' : 'Consultation', clientName: name, clientPhone: phone, clientEmail: document.getElementById('b-email')?.value || '', propertyId, date, time, status: 'Pending', notes: document.getElementById('b-notes')?.value || '' });
   openModal(`
     <div class="modal-body" style="text-align:center;padding:48px 36px">
@@ -1567,9 +1714,9 @@ function renderAdminProperties(props, devs) {
                 <td>${statusBadge(p.status)}</td>
                 <td>
                   <div class="table-actions">
-                    <button class="btn btn-outline btn-sm" onclick="App.navigate('property',{id:${p.id}})">View</button>
-                    <button class="btn btn-outline btn-sm" onclick="openEditPropertyModal(${p.id})">Edit</button>
-                    <button class="btn btn-danger btn-sm" onclick="deleteProperty(${p.id})">Del</button>
+                    <button class="btn btn-outline btn-sm" onclick="App.navigate('property',{id:'${p.id}'})">View</button>
+                    <button class="btn btn-outline btn-sm" onclick="openEditPropertyModal('${p.id}')">Edit</button>
+                    <button class="btn btn-danger btn-sm" onclick="deleteProperty('${p.id}')">Del</button>
                   </div>
                 </td>
               </tr>`).join('')}
@@ -1610,9 +1757,9 @@ function renderAdminVehicles(vehicles, owners) {
                 <td>${statusBadge(v.status)}</td>
                 <td>
                   <div class="table-actions">
-                    <button class="btn btn-outline btn-sm" onclick="App.navigate('vehicle',{id:${v.id}})">View</button>
-                    <button class="btn btn-outline btn-sm" onclick="openEditVehicleModal(${v.id})">Edit</button>
-                    <button class="btn btn-danger btn-sm" onclick="deleteVehicle(${v.id})">Del</button>
+                    <button class="btn btn-outline btn-sm" onclick="App.navigate('vehicle',{id:'${v.id}'})">View</button>
+                    <button class="btn btn-outline btn-sm" onclick="openEditVehicleModal('${v.id}')">Edit</button>
+                    <button class="btn btn-danger btn-sm" onclick="deleteVehicle('${v.id}')">Del</button>
                   </div>
                 </td>
               </tr>`;
@@ -1702,7 +1849,7 @@ async function saveNewVehicle() {
   const year  = Number(document.getElementById('av-year')?.value);
   const price = Number(document.getElementById('av-price')?.value);
   const mileage = Number(document.getElementById('av-mileage')?.value);
-  const ownerId = Number(document.getElementById('av-owner')?.value);
+  const ownerId = document.getElementById('av-owner')?.value || '';
   if (!make || !model || !year || !price || !ownerId) { showToast('Please fill in all required fields.', 'error'); return; }
   const rawImgs = document.getElementById('av-images')?.value || '';
   const images = rawImgs.split('\n').map(s=>s.trim()).filter(Boolean);
@@ -1793,7 +1940,7 @@ function openEditVehicleModal(id) {
     </div>
     <div class="modal-footer">
       <button class="btn btn-outline" onclick="closeModal()">Cancel</button>
-      <button class="btn btn-primary" onclick="saveEditVehicle(${id})">Save Changes</button>
+      <button class="btn btn-primary" onclick="saveEditVehicle('${id}')">Save Changes</button>
     </div>`);
 }
 
@@ -1815,7 +1962,7 @@ async function saveEditVehicle(id) {
     engineCC:     Number(document.getElementById('ev-engine')?.value) || 0,
     price:        Number(document.getElementById('ev-price')?.value),
     status:       document.getElementById('ev-status')?.value,
-    ownerId:      Number(document.getElementById('ev-owner')?.value),
+    ownerId:      document.getElementById('ev-owner')?.value || '',
     description:  document.getElementById('ev-desc')?.value.trim(),
     features, images
   });
@@ -1870,8 +2017,8 @@ function renderAdminVehicleOwners(owners, vehicles) {
                 <td style="font-size:.84rem;color:var(--text-muted)">${new Date(o.joined).toLocaleDateString()}</td>
                 <td>
                   <div class="table-actions">
-                    <button class="btn btn-outline btn-sm" onclick="openEditVehicleOwnerModal(${o.id})">Edit</button>
-                    ${ownerVehicles.length === 0 ? `<button class="btn btn-danger btn-sm" onclick="deleteVehicleOwner(${o.id})">Del</button>` : ''}
+                    <button class="btn btn-outline btn-sm" onclick="openEditVehicleOwnerModal('${o.id}')">Edit</button>
+                    ${ownerVehicles.length === 0 ? `<button class="btn btn-danger btn-sm" onclick="deleteVehicleOwner('${o.id}')">Del</button>` : ''}
                   </div>
                 </td>
               </tr>`;
@@ -1940,7 +2087,7 @@ function openEditVehicleOwnerModal(id) {
     </div>
     <div class="modal-footer">
       <button class="btn btn-outline" onclick="closeModal()">Cancel</button>
-      <button class="btn btn-primary" onclick="saveEditVehicleOwner(${id})">Save</button>
+      <button class="btn btn-primary" onclick="saveEditVehicleOwner('${id}')">Save</button>
     </div>`);
 }
 
@@ -1986,8 +2133,8 @@ function renderAdminLeads(leads, props) {
                 <td style="white-space:nowrap">${new Date(l.date).toLocaleDateString()}</td>
                 <td>
                   <div class="table-actions">
-                    <button class="btn btn-outline btn-sm" onclick="openUpdateLeadModal(${l.id})">Update</button>
-                    <button class="btn btn-danger btn-sm" onclick="deleteLead(${l.id})">Del</button>
+                    <button class="btn btn-outline btn-sm" onclick="openUpdateLeadModal('${l.id}')">Update</button>
+                    <button class="btn btn-danger btn-sm" onclick="deleteLead('${l.id}')">Del</button>
                   </div>
                 </td>
               </tr>`).join('')}
@@ -2018,9 +2165,9 @@ function renderAdminBookings(bookings, props) {
                 <td>${statusBadge(b.status)}</td>
                 <td>
                   <div class="table-actions">
-                    <button class="btn btn-outline btn-sm" onclick="updateBookingStatus(${b.id},'Confirmed')">Confirm</button>
-                    <button class="btn btn-outline btn-sm" onclick="updateBookingStatus(${b.id},'Completed')">Done</button>
-                    <button class="btn btn-danger btn-sm" onclick="updateBookingStatus(${b.id},'Cancelled')">Cancel</button>
+                    <button class="btn btn-outline btn-sm" onclick="updateBookingStatus('${b.id}','Confirmed')">Confirm</button>
+                    <button class="btn btn-outline btn-sm" onclick="updateBookingStatus('${b.id}','Completed')">Done</button>
+                    <button class="btn btn-danger btn-sm" onclick="updateBookingStatus('${b.id}','Cancelled')">Cancel</button>
                   </div>
                 </td>
               </tr>`;}).join('')}
@@ -2050,9 +2197,9 @@ function renderAdminServices(services) {
                 <td>${statusBadge(s.status)}</td>
                 <td>
                   <div class="table-actions">
-                    <button class="btn btn-outline btn-sm" onclick="updateServiceStatus(${s.id},'In Progress')">Start</button>
-                    <button class="btn btn-outline btn-sm" onclick="updateServiceStatus(${s.id},'Completed')">Complete</button>
-                    <button class="btn btn-danger btn-sm" onclick="deleteService(${s.id})">Del</button>
+                    <button class="btn btn-outline btn-sm" onclick="updateServiceStatus('${s.id}','In Progress')">Start</button>
+                    <button class="btn btn-outline btn-sm" onclick="updateServiceStatus('${s.id}','Completed')">Complete</button>
+                    <button class="btn btn-danger btn-sm" onclick="deleteService('${s.id}')">Del</button>
                   </div>
                 </td>
               </tr>`).join('')}
@@ -2082,8 +2229,8 @@ function renderAdminDevelopers(devs, props) {
                 <td>${statusBadge(d.status)}</td>
                 <td>
                   <div class="table-actions">
-                    <button class="btn btn-outline btn-sm" onclick="activateDeveloper(${d.id})">Activate</button>
-                    <button class="btn btn-danger btn-sm" onclick="deleteDeveloper(${d.id})">Del</button>
+                    <button class="btn btn-outline btn-sm" onclick="activateDeveloper('${d.id}')">Activate</button>
+                    <button class="btn btn-danger btn-sm" onclick="deleteDeveloper('${d.id}')">Del</button>
                   </div>
                 </td>
               </tr>`).join('')}
@@ -2205,7 +2352,7 @@ function openEditPropertyModal(id) {
     </div>
     <div class="modal-footer">
       <button class="btn btn-outline" onclick="closeModal()">Cancel</button>
-      <button class="btn btn-primary" onclick="saveEditProperty(${id})">Save Changes</button>
+      <button class="btn btn-primary" onclick="saveEditProperty('${id}')">Save Changes</button>
     </div>`);
 }
 
@@ -2251,7 +2398,7 @@ function openUpdateLeadModal(id) {
     </div>
     <div class="modal-footer">
       <button class="btn btn-outline" onclick="closeModal()">Cancel</button>
-      <button class="btn btn-primary" onclick="saveLeadUpdate(${id})">Save</button>
+      <button class="btn btn-primary" onclick="saveLeadUpdate('${id}')">Save</button>
     </div>`);
 }
 
@@ -2494,9 +2641,9 @@ function renderAdminUsers(users) {
                 <td>${u.active ? '<span class="badge badge-green">Active</span>' : '<span class="badge badge-red">Inactive</span>'}</td>
                 <td>
                   <div class="table-actions">
-                    <button class="btn btn-outline btn-sm" onclick="openEditUserModal(${u.id})">Edit</button>
-                    ${u.role !== 'superadmin' ? `<button class="btn btn-outline btn-sm" onclick="toggleUserActive(${u.id},${!u.active})">${u.active?'Deactivate':'Activate'}</button>` : ''}
-                    ${u.role !== 'superadmin' ? `<button class="btn btn-danger btn-sm" onclick="deleteUser(${u.id})">Del</button>` : ''}
+                    <button class="btn btn-outline btn-sm" onclick="openEditUserModal('${u.id}')">Edit</button>
+                    ${u.role !== 'superadmin' ? `<button class="btn btn-outline btn-sm" onclick="toggleUserActive('${u.id}',${!u.active})">${u.active?'Deactivate':'Activate'}</button>` : ''}
+                    ${u.role !== 'superadmin' ? `<button class="btn btn-danger btn-sm" onclick="deleteUser('${u.id}')">Del</button>` : ''}
                   </div>
                 </td>
               </tr>`).join('')}
@@ -2562,7 +2709,7 @@ function openEditUserModal(id) {
     </div>
     <div class="modal-footer">
       <button class="btn btn-outline" onclick="closeModal()">Cancel</button>
-      <button class="btn btn-primary" onclick="saveEditUser(${id})">Save Changes</button>
+      <button class="btn btn-primary" onclick="saveEditUser('${id}')">Save Changes</button>
     </div>`);
 }
 
@@ -2728,7 +2875,7 @@ function renderVehicleCard(v) {
   const firstImg = v.images && v.images.length > 0 ? v.images[0] : null;
   const condColor = {Excellent:'badge-green',Good:'badge-blue',Fair:'badge-yellow'}[v.condition] || 'badge-gray';
   return `
-  <div class="property-card" onclick="App.navigate('vehicle', {id:${v.id}})">
+  <div class="property-card" onclick="App.navigate('vehicle', {id:'${v.id}'})" style="cursor:pointer">
     <div class="property-card-img ${firstImg ? '' : vehicleTypeClass(v.type)}" style="${firstImg ? `background:url('${firstImg}') center/cover no-repeat` : 'background:linear-gradient(135deg,var(--primary) 0%,#2d4a8a 100%)'}">
       ${!firstImg ? `<div class="property-card-icon">${vehicleTypeIcon(v.type)}</div>` : ''}
       <div class="property-card-badges">
@@ -2747,7 +2894,7 @@ function renderVehicleCard(v) {
       </div>
       <div class="property-card-footer">
         <div class="property-card-price">${fmt(v.price)}<span> asking</span></div>
-        <button class="btn btn-primary btn-sm" onclick="event.stopPropagation();openVehicleInquiryModal(${v.id})">Enquire</button>
+        <button class="btn btn-primary btn-sm" onclick="event.stopPropagation();openVehicleInquiryModal('${v.id}')">Enquire</button>
       </div>
     </div>
   </div>`;
@@ -2919,11 +3066,11 @@ function renderVehicleDetail(id) {
   <div>
     ${hasImgs ? `
     <div class="prop-gallery">
-      <div class="prop-gallery-main" id="gallery-main" style="background:url('${v.images[0]}') center/cover no-repeat">
+      <div class="prop-gallery-main" id="gallery-main" style="background:url('${v.images[0]}') center/cover no-repeat;cursor:zoom-in" onclick="openLightbox(${JSON.stringify(v.images)},_galleryActiveIdx||0)">
         <div class="hero-badges" style="position:absolute;top:16px;left:16px;opacity:1">${statusBadge(v.status)}<span class="badge ${condColor}" style="margin-left:6px">${v.condition}</span></div>
-        ${v.images.length > 1 ? `<div class="gallery-counter">📷 ${v.images.length} photos</div>` : ''}
+        ${v.images.length > 1 ? `<div class="gallery-counter" style="cursor:zoom-in">📷 ${v.images.length} photos · Click to expand</div>` : '<div class="gallery-counter" style="cursor:zoom-in">🔍 Click to expand</div>'}
       </div>
-      ${v.images.length > 1 ? `<div class="prop-gallery-thumbs">${v.images.slice(0,5).map((img,i) => `<div class="gallery-thumb ${i===0?'active':''}" style="background:url('${img}') center/cover" onclick="setGalleryMain('${img}',this)"></div>`).join('')}</div>` : ''}
+      ${v.images.length > 1 ? `<div class="prop-gallery-thumbs">${v.images.slice(0,5).map((img,i) => `<div class="gallery-thumb ${i===0?'active':''}" style="background:url('${img}') center/cover;cursor:zoom-in" onclick="setGalleryMain('${img}',this);_galleryActiveIdx=${i}"></div>`).join('')}</div>` : ''}
     </div>` : `
     <div class="property-detail-hero" style="background:linear-gradient(135deg,var(--primary) 0%,#2d4a8a 100%)">
       <span style="font-size:4rem">${vehicleTypeIcon(v.type)}</span>
@@ -2986,9 +3133,9 @@ function renderVehicleDetail(id) {
               <div class="alert alert-error">This vehicle has been sold. <span style="cursor:pointer;text-decoration:underline" onclick="App.navigate('vehicles')">Browse more vehicles.</span></div>
             ` : v.status === 'Reserved' ? `
               <div class="alert alert-warning" style="background:#fff8e1;border-color:#f9a825;color:#7a5800">This vehicle is currently reserved. Contact us to join the waiting list.</div>
-              <button class="btn btn-outline btn-block" onclick="openVehicleInquiryModal(${v.id})" style="margin-top:10px">✉️ Join Waiting List</button>
+              <button class="btn btn-outline btn-block" onclick="openVehicleInquiryModal('${v.id}')" style="margin-top:10px">✉️ Join Waiting List</button>
             ` : `
-              <button class="btn btn-primary btn-block" style="margin-bottom:10px" onclick="openVehicleInquiryModal(${v.id})">✉️ Make an Enquiry</button>
+              <button class="btn btn-primary btn-block" style="margin-bottom:10px" onclick="openVehicleInquiryModal('${v.id}')">✉️ Make an Enquiry</button>
               <button class="btn btn-outline btn-block" onclick="App.navigate('booking')">📅 Book an Inspection</button>
               <div class="divider"></div>
               <div style="background:var(--bg);border-radius:var(--radius);padding:14px;font-size:.84rem;color:var(--text-light)">
